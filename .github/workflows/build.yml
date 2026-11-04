@@ -1,0 +1,85 @@
+name: Build ALLABERGENOV AI APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download project
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract Android project
+        run: |
+          chmod +x install-allabergenov-ai-android.sh
+          ./install-allabergenov-ai-android.sh
+
+      - name: Configure Android project
+        working-directory: android-app
+        run: |
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "ALLABERGENOV-AI"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.7.3" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+              id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
+          }
+          EOF
+
+          touch gradle.properties
+          touch app/proguard-rules.pro
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          s = re.sub(r'    applicationVariants\.all\s*\{.*?\n    \}\n', '', s, flags=re.S)
+          p.write_text(s)
+          PY
+
+      - name: Build APK
+        working-directory: android-app
+        run: |
+          gradle wrapper
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Save APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALLABERGENOV-AI-APK
+          path: android-app/app/build/outputs/apk/debug/*.apk
