@@ -59,7 +59,7 @@ jobs:
           }
           EOF
 
-          touch gradle.properties
+          printf "android.useAndroidX=true\nandroid.enableJetifier=true\n" > gradle.properties
           touch app/proguard-rules.pro
 
           python3 - <<'PY'
